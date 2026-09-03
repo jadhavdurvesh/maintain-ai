@@ -10,7 +10,7 @@ import json
 import os
 from typing import List, Optional
 
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
 
 
 def _resolve_api_key(db=None) -> Optional[str]:
