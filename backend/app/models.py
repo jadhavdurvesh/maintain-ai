@@ -104,12 +104,7 @@ class Machine(Base):
 
 
 class MachineRuntimeSession(Base):
-    """A durable operating/idle session used to calculate real machine runtime.
-
-    Only sessions with state=running contribute to operating_hours. Keeping the
-    sessions separately lets us preserve the runtime history without changing
-    the meaning of the existing lifetime operating_hours field.
-    """
+    """Durable runtime/idle sessions used to calculate real machine runtime."""
     __tablename__ = "machine_runtime_sessions"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -188,7 +183,7 @@ class WorkOrder(Base):
     machine_id = Column(Integer, ForeignKey("machines.id"))
     problem = Column(Text, nullable=False)
     priority = Column(Enum(Priority), default=Priority.medium)
-    status = Column(Enum(WorkOrderStatus, default=WorkOrderStatus.pending)
+    status = Column(Enum(WorkOrderStatus), default=WorkOrderStatus.pending)
     recommended_actions = Column(Text)  # newline separated
     assigned_to = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
