@@ -58,6 +58,32 @@ class MachineOut(BaseModel):
     next_maintenance_date: Optional[datetime]
 
 
+class RuntimeActionIn(BaseModel):
+    state: str  # running | idle | stopped | maintenance | fault
+    source: str = "manual"
+
+
+class RuntimeStatusOut(BaseModel):
+    machine_id: int
+    state: str
+    operating_hours: float
+    current_session_id: Optional[int] = None
+    session_started_at: Optional[datetime] = None
+    accumulated_session_seconds: float = 0
+    last_accounted_at: Optional[datetime] = None
+
+
+class RuntimeSessionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    machine_id: int
+    state: str
+    started_at: datetime
+    ended_at: Optional[datetime]
+    duration_seconds: float
+    source: str
+
+
 class SensorReadingIn(BaseModel):
     reading_type: str
     value: float
