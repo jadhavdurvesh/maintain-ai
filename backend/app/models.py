@@ -61,6 +61,14 @@ class UserRole(str, enum.Enum):
     viewer = "viewer"
 
 
+class RuntimeState(str, enum.Enum):
+    running = "running"
+    idle = "idle"
+    stopped = "stopped"
+    maintenance = "maintenance"
+    fault = "fault"
+
+
 class Machine(Base):
     __tablename__ = "machines"
 
@@ -92,6 +100,23 @@ class Machine(Base):
     work_orders = relationship("WorkOrder", back_populates="machine", cascade="all, delete-orphan")
     alerts = relationship("Alert", back_populates="machine", cascade="all, delete-orphan")
     ai_sessions = relationship("AIDiagnosticSession", back_populates="machine", cascade="all, delete-orphan")
+    runtime_sessions = relationship("MachineRuntimeSession", back_populates="machine", cascade="all, delete-orphan")
+
+
+class MachineRuntimeSession(Base):
+    """Durable runtime/idle sessions used to calculate real machine runtime."""
+    __tablename__ = "machine_runtime_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    machine_id = Column(Integer, ForeignKey("machines.id"), nullable=False, index=True)
+    state = Column(Enum(RuntimeState), nullable=False)
+    started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    ended_at = Column(DateTime, nullable=True)
+    last_accounted_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    duration_seconds = Column(Float, nullable=False, default=0)
+    source = Column(String, nullable=False, default="manual")  # manual | iot | system
+
+    machine = relationship("Machine", back_populates="runtime_sessions")
 
 
 class Component(Base):

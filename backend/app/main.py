@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import Base, engine
-from .routers import machines, maintenance, work_orders, alerts, spare_parts, ai_assistant, reports, users, settings
+from .routers import machines, maintenance, work_orders, alerts, spare_parts, ai_assistant, reports, users, settings, runtime
 
 Base.metadata.create_all(bind=engine)
 
@@ -23,6 +23,7 @@ app.add_middleware(
 )
 
 app.include_router(machines.router)
+app.include_router(runtime.router)
 app.include_router(maintenance.router)
 app.include_router(work_orders.router)
 app.include_router(alerts.router)

@@ -8,25 +8,54 @@ export default function MachineDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [machine, setMachine] = useState(null)
+  const [runtime, setRuntime] = useState(null)
   const [components, setComponents] = useState([])
   const [readings, setReadings] = useState([])
   const [maintenance, setMaintenance] = useState([])
   const [error, setError] = useState(null)
+  const [runtimeBusy, setRuntimeBusy] = useState(false)
   const [newReading, setNewReading] = useState({ reading_type: 'temperature', value: '', unit: '°C' })
   const [newComponent, setNewComponent] = useState('')
 
   const load = () => {
     Promise.all([
       api.get(`/api/machines/${id}`),
+      api.get(`/api/machines/${id}/runtime`),
       api.get(`/api/machines/${id}/components`),
       api.get(`/api/machines/${id}/readings`),
       api.get(`/api/maintenance?machine_id=${id}`),
     ])
-      .then(([m, c, r, mt]) => { setMachine(m); setComponents(c); setReadings(r); setMaintenance(mt) })
+      .then(([m, rt, c, r, mt]) => {
+        setMachine(m)
+        setRuntime(rt)
+        setComponents(c)
+        setReadings(r)
+        setMaintenance(mt)
+      })
       .catch((e) => setError(e.message))
   }
 
-  useEffect(() => { load() }, [id])
+  useEffect(() => {
+    load()
+    const timer = setInterval(() => {
+      api.get(`/api/machines/${id}/runtime`).then(setRuntime).catch(() => {})
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [id])
+
+  const changeRuntime = async (state) => {
+    setRuntimeBusy(true)
+    try {
+      const next = await api.post(`/api/machines/${id}/runtime`, { state, source: 'manual' })
+      setRuntime(next)
+      const refreshed = await api.get(`/api/machines/${id}`)
+      setMachine(refreshed)
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setRuntimeBusy(false)
+    }
+  }
 
   const addReading = async (e) => {
     e.preventDefault()
@@ -44,7 +73,10 @@ export default function MachineDetail() {
   }
 
   if (error) return <ErrorState message={error} />
-  if (!machine) return <Loading />
+  if (!machine || !runtime) return <Loading />
+
+  const displayHours = Number(runtime.operating_hours || machine.operating_hours || 0)
+  const stateLabel = runtime.state.charAt(0).toUpperCase() + runtime.state.slice(1)
 
   return (
     <>
@@ -56,9 +88,33 @@ export default function MachineDetail() {
       <div className="content">
         <div className="stat-grid">
           <div className="stat-tile"><div className="stat-label">HEALTH SCORE</div><div className={`stat-value ${machine.status}`}>{machine.health_score}/100</div></div>
-          <div className="stat-tile"><div className="stat-label">OPERATING HOURS</div><div className="stat-value">{machine.operating_hours}</div></div>
-          <div className="stat-tile"><div className="stat-label">CRITICALITY</div><div className="stat-value">{machine.criticality}</div></div>
+          <div className="stat-tile"><div className="stat-label">OPERATING HOURS</div><div className="stat-value">{displayHours.toFixed(2)} h</div></div>
+          <div className="stat-tile"><div className="stat-label">RUNTIME STATE</div><div className="stat-value">{stateLabel}</div></div>
           <div className="stat-tile"><div className="stat-label">NEXT MAINTENANCE</div><div className="stat-value" style={{ fontSize: 15 }}>{machine.next_maintenance_date ? new Date(machine.next_maintenance_date).toLocaleDateString() : '—'}</div></div>
+        </div>
+
+        <div className="panel section-gap">
+          <div className="panel-header">
+            <span className="panel-title">Machine Runtime</span>
+            <span className="mono" style={{ color: runtime.state === 'running' ? 'var(--success)' : 'var(--text-faint)' }}>{stateLabel}</span>
+          </div>
+          <div className="panel-body">
+            <div style={{ color: 'var(--text-faint)', marginBottom: 12 }}>
+              Operating hours increase only while the machine is <strong>RUNNING</strong>. Idle, stopped, maintenance and fault time do not add to operating hours.
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn" disabled={runtimeBusy || runtime.state === 'running'} onClick={() => changeRuntime('running')}>▶ Start / Run</button>
+              <button className="btn secondary" disabled={runtimeBusy || runtime.state === 'idle'} onClick={() => changeRuntime('idle')}>Ⅱ Idle</button>
+              <button className="btn secondary" disabled={runtimeBusy || runtime.state === 'stopped'} onClick={() => changeRuntime('stopped')}>■ Stop</button>
+              <button className="btn secondary" disabled={runtimeBusy || runtime.state === 'maintenance'} onClick={() => changeRuntime('maintenance')}>Maintenance</button>
+              <button className="btn secondary" disabled={runtimeBusy || runtime.state === 'fault'} onClick={() => changeRuntime('fault')}>Fault</button>
+            </div>
+            {runtime.state === 'running' && runtime.session_started_at && (
+              <div style={{ marginTop: 12, color: 'var(--text-faint)' }}>
+                Current run started {new Date(runtime.session_started_at).toLocaleString()} · session runtime {(Number(runtime.accumulated_session_seconds || 0) / 3600).toFixed(2)} h
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="grid-2 section-gap">
