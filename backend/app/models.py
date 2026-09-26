@@ -61,6 +61,14 @@ class UserRole(str, enum.Enum):
     viewer = "viewer"
 
 
+class RuntimeState(str, enum.Enum):
+    running = "running"
+    idle = "idle"
+    stopped = "stopped"
+    maintenance = "maintenance"
+    fault = "fault"
+
+
 class Machine(Base):
     __tablename__ = "machines"
 
@@ -92,6 +100,28 @@ class Machine(Base):
     work_orders = relationship("WorkOrder", back_populates="machine", cascade="all, delete-orphan")
     alerts = relationship("Alert", back_populates="machine", cascade="all, delete-orphan")
     ai_sessions = relationship("AIDiagnosticSession", back_populates="machine", cascade="all, delete-orphan")
+    runtime_sessions = relationship("MachineRuntimeSession", back_populates="machine", cascade="all, delete-orphan")
+
+
+class MachineRuntimeSession(Base):
+    """A durable operating/idle session used to calculate real machine runtime.
+
+    Only sessions with state=running contribute to operating_hours. Keeping the
+    sessions separately lets us preserve the runtime history without changing
+    the meaning of the existing lifetime operating_hours field.
+    """
+    __tablename__ = "machine_runtime_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    machine_id = Column(Integer, ForeignKey("machines.id"), nullable=False, index=True)
+    state = Column(Enum(RuntimeState), nullable=False)
+    started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    ended_at = Column(DateTime, nullable=True)
+    last_accounted_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    duration_seconds = Column(Float, nullable=False, default=0)
+    source = Column(String, nullable=False, default="manual")  # manual | iot | system
+
+    machine = relationship("Machine", back_populates="runtime_sessions")
 
 
 class Component(Base):
@@ -158,7 +188,7 @@ class WorkOrder(Base):
     machine_id = Column(Integer, ForeignKey("machines.id"))
     problem = Column(Text, nullable=False)
     priority = Column(Enum(Priority), default=Priority.medium)
-    status = Column(Enum(WorkOrderStatus), default=WorkOrderStatus.pending)
+    status = Column(Enum(WorkOrderStatus, default=WorkOrderStatus.pending)
     recommended_actions = Column(Text)  # newline separated
     assigned_to = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
